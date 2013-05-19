@@ -150,13 +150,13 @@ class SimpleMessageQueue:
 		head = self._get_pointer(self.key_head, "head")
 		
 		if not head:
-			return False
+			return None
 
 		# Incr "Snake-Byte" tail.
 		tail = self._incr_pointer(self.key_tail, "tail")
 		
 		if not tail:
-			return False
+			return None
 			
 		if tail > head:
 			self.debug("Empty queue")
@@ -167,7 +167,7 @@ class SimpleMessageQueue:
 			# seems more correct.
 			self.r.set(self.key_tail, head)
 			
-			return False
+			return None
 
 		data_key = "%s:%ld" % (self.name, tail)
 		
