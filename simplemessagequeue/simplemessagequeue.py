@@ -4,59 +4,31 @@ import memcache
 
 from hashlib import md5
 
-import time
-
-#from uuid import uuid4
-
-_debug = False
-
-class SimpleLocker:
-	r    = None
-		
-	def __init__(self, r, key, timeout = 5):
-		self.r       = r
-		
-		self.key     = key
-		
-		self.timeout = timeout
-		self.start   = 0
-		self.quant   = 0.33
-		
-	def debug(self, s):
-		if _debug:
-			print s
-	
-	def accuire(self):
-		self.start = time.time()
-		while True:
-			if self.r.add(self.key, 1, self.timeout) :
-				self.debug("Lock accuired")
-				return True
-				
-			if time.time() - self.start > self.timeout:
-				self.debug("Lock accuire failed")
-				return False
-			
-			time.sleep(self.quant)
-			self.debug("Lock wait")
-
-	def release(self):
-		if time.time() - self.start < self.timeout - self.quant:
-			self.debug("Lock released")
-			self.r.delete(self.key)
-			return
-		
-		self.debug("Lock release failed")
-			
-
+from simplelocker import SimpleLocker
 
 class SimpleMessageQueue:
+	"""
+	Object for getting a lock over memcache
+	"""
 	r    = None
 	
-	def __init__(self, r, name):
+	def __init__(self, r, name, timeout = 5, debug = False):
+		"""
+		Create a new SimpleLocker object. Will create following memcache keys:
+		q:head - queue head
+		q:tail - queue tail
+		q:lock - queue lock, expiration will be set
+		q:uniq:xxxxx - unique lock based on md5 of the message
+		q:0001 - queue message
+		
+		@param r: memcache object
+		@param name: name of the queue. Will be used for prefix on queue keys.
+		@param timeout: optional timeout for SimpleLocker
+		"""
 		self.r        = r
 		self.name     = name
-		self.lock     = SimpleLocker(r, "%s:lock" % name)
+		self.lock     = SimpleLocker(r, "%s:lock" % name, timeout, debug)
+		self.debug2   = debug
 		
 		self.key_head = "%s:%s" % (name, "head")
 		self.key_tail = "%s:%s" % (name, "tail")
@@ -64,7 +36,7 @@ class SimpleMessageQueue:
 
 
 	def debug(self, s):
-		if _debug:
+		if self.debug2:
 			print s
 
 
@@ -108,6 +80,11 @@ class SimpleMessageQueue:
 
 
 	def ismember(self, message):
+		"""
+		Check if message is in the queue
+		@param message: the message.
+		@return: True if message is in the queue, else false
+		"""
 		uk = self._get_uniq_key(message)
 		
 		if self.r.get(uk) :
@@ -142,6 +119,12 @@ class SimpleMessageQueue:
 		return False
 	
 	def put(self, message, uniq=True):
+		"""
+		Put message is in the queue
+		@param message: the message.
+		@param uniq: check if message is alreay in the queue and do not insert twice.
+		@return: True if message is inserted or in the queue, else false
+		"""
 		if uniq:
 			# Check uniq key, it does not need lock
 			if self.ismember(message) :
@@ -200,6 +183,10 @@ class SimpleMessageQueue:
 		return message
 
 	def get(self):
+		"""
+		Get message from the queue
+		@return: the message or None if an error occure.
+		"""
 		# Accuire lock
 		if self.lock.accuire() :
 			# Get the message
@@ -215,6 +202,10 @@ class SimpleMessageQueue:
 
 
 	def info(self):
+		"""
+		Get info about the queue
+		@return: (size of the queue, head, tail)
+		"""
 		# No need lock here.
 		head = self._get_pointer(self.key_head, "head")
 		tail = self._get_pointer(self.key_tail, "tail")
@@ -238,24 +229,39 @@ class SimpleMessageQueue:
 
 	# For Redis compatibility and Common sense names
 	def add(self, message):
+		"""
+		Alias of put()
+		"""
 		return self.put(message)
 		
 	def sadd(self, message):
+		"""
+		Alias of put()
+		"""
 		return self.put(message)
 		
 	def pop(self):
+		"""
+		Alias of get()
+		"""
 		return self.get()
 		
 	def spop(self):
+		"""
+		Alias of get()
+		"""
 		return self.get()
 
 	def sismember(self, message):
+		"""
+		Alias of ismember()
+		"""
 		return self.ismember(message)
 
 
 if __name__ == "__main__":
 	mqmc = memcache.Client(["localhost:1980"], debug=0)
-	mq   = SimpleMessageQueue(mqmc, "niki")
+	mq   = SimpleMessageQueue(mqmc, "niki", debug = True)
 	
 	"""
 	for i in xrange(50000):
@@ -265,9 +271,7 @@ if __name__ == "__main__":
 		if not mq.put("msg2 # %08d" % i) :
 			print "error"
 	"""
-	
-	_debug = True
-	
+		
 	print mq.get()
 	
 	"""

@@ -27,7 +27,11 @@ New messages get stored on the head, and old messages are collected from the tai
 However, because we work really concurrent, we can not just put or pop messages. There are few situations when an error can occure and message can be lost.
 
 For example when a message is pop, a tail is increased, then if message is missing, nobody can be sure if this is empty message, or this is running put() request, that still did not saved the message.
+
 One possible correction is to wait 5 seconds or so and try collect the message again. However this method is very slow, especially on near empty queue.
+
+Another way for possible correction is to set one more key with "done", after you set the data key. Then pop() first retrieve the "done" key, then if it exists - the "data" key.
+However this method is not good if something happen and "done" key is never set. System will then stuck for looong time.
 
 There are lot more problems that can not be solved easyly using pure memcached functions.
 
