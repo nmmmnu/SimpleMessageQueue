@@ -1,3 +1,12 @@
+Notice
+======
+
+Because of low performance (caused of the locks), this project is discontinued in favour of:
+
+https://github.com/nmmmnu/MessageQueue
+
+---------------
+
 SimpleMessageQueue
 ==================
 
